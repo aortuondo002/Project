@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+{% autoescape true %}
+<html>
+	<head>
+		<title>
+			AJAX project 2.0
+		</title>
+	</head>
+<body onload="GetTimeIO()">
+        {% if user %}
+            Kaixo {{user.email()}}
+            TYPE HERE WHAT YOU WANT TO TWEET <a href=”http://twitter.com/home/?status= TYPE HERE WHAT YOU WANT TO TWEET via @YOUR-TWITTER-ACCOUNT ” target=”_blank”> Tweet this!</a>
+        {% else %}
+            Autentikatu zaitez:
+        {% endif %}
+        <a href="{{ url }}">{{ url_linktext }}</a>
+	</body>
+</html>
+{% endautoescape %}
