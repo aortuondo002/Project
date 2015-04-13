@@ -1,42 +1,26 @@
-$(document).ready(function() {
-  // Declare variables to hold twitter API url and user name
-  var twitter_api_url = 'http://search.twitter.com/search.json';
-  var twitter_user    = '';
- 
-  // Enable caching
-  $.ajaxSetup({ cache: true });
- 
-  // Send JSON request
-  // The returned JSON object will have a property called "results" where we find
-  // a list of the tweets matching our request query
-  $.getJSON(
-    twitter_api_url + '?callback=?&rpp=5&q=from:' + twitter_user,
-    function(data) {
-      $.each(data.results, function(i, tweet) {
-        // Uncomment line below to show tweet data in Fire Bug console
-        // Very helpful to find out what is available in the tweet objects
-        //console.log(tweet);
- 
-        // Before we continue we check that we got data
-        if(tweet.text !== undefined) {
-          // Calculate how many hours ago was the tweet posted
-          var date_tweet = new Date(tweet.created_at);
-          var date_now   = new Date();
-          var date_diff  = date_now - date_tweet;
-          var hours      = Math.round(date_diff/(1000*60*60));
- 
-          // Build the html string for the current tweet
-          var tweet_html = '<div class="tweet_text">';
-          tweet_html    += '<a href="http://www.twitter.com/';
-          tweet_html    += twitter_user + '/status/' + tweet.id + '">';
-          tweet_html    += tweet.text + '<\/a><\/div>';
-          tweet_html    += '<div class="tweet_hours">' + hours;
-          tweet_html    += ' hours ago<\/div>';
- 
-          // Append html string to tweet_container div
-          $('#tweet_container').append(tweet_html);
+__author__ = 'aitor'
+ function GetTweet() {
+    nocache = "nocache=" + Math.random() * 1000000;
+    var request = new XMLHttpRequest();
+
+    request.onreadystatechange = function() {
+        if (request.readyState == 4) {
+            if (request.status == 200) {
+                if (request.responseText != null) {
+                    var jsonObj = JSON.parse(request.responseText);
+                    document.getElementsByClassName("name1")[0].innerHTML = jsonObj.name1;
+                    document.getElementsByClassName("tweet1")[0].innerHTML = jsonObj.tweet1;
+
+                    document.getElementsByClassName("name2")[0].innerHTML = jsonObj.name2;
+                    document.getElementsByClassName("tweet2")[0].innerHTML = jsonObj.tweet2;
+
+                    document.getElementsByClassName("name3")[0].innerHTML = jsonObj.name3;
+                    document.getElementsByClassName("tweet3")[0].innerHTML = jsonObj.tweet3;
+                }
+            }
         }
-      });
-    }
-  );
-});
+    };
+    request.open("GET", "/RefreshLast3Tweets?"+nocache, true);
+    request.send(null);
+    setTimeout("GetTweet()", 60000);
+}

@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 import webapp2
 import httplib2
 import urllib
@@ -38,6 +37,7 @@ app_id = 'wsproiektua'
 consumer_key= 'kn5h9Ugc1cqbdgKVytnGtLgHX'
 consumer_secret = '9DywYgURVynwo491diML5g9p3BL9DHAwA3yofZhFHUqpj4CeyS'
 callback_url = 'https://' + app_id + '.appspot.com/oauth_callback'
+gae_logs = 'https://appengine.google.com/logs?&app_id=' + app_id
 
 
 class BaseHandler(webapp2.RequestHandler):
@@ -71,68 +71,137 @@ JINJA_ENVIRONMENT = jinja2.Environment(
 
 class MainHandler(BaseHandler):
     def get(self):
-        user= users.get_current_user()
+        user = users.get_current_user()
+        name = ''
         if user:
             url = users.create_logout_url(self.request.uri)
             url_linktext = 'Logout'
+            if(self.session['twitter_user']==True):
+                http = httplib2.Http()
+                method = 'GET'
+                base_url = 'https://api.twitter.com/1.1/account/settings.json'
+                oauth_headers = {'oauth_token': self.session.get('oauth_token')}
+                request_headers = {'User-Agent': 'Google App Engine', 'Authorization': createAuthHeader(method, base_url, oauth_headers, None, self.session.get('oauth_token_secret'))}
+                resp, content = http.request(base_url, method, headers=request_headers)
+                logging.debug(content)
+
+                edukia = json.loads(content)
+                name = edukia['screen_name']
+
         else:
             url = users.create_login_url(self.request.uri)
             url_linktext = 'Login'
+            self.session['twitter_user'] = False
 
         template_values = {
             'user': user,
+            'twitter_user': self.session['twitter_user'],
+            'name' : name,
             'url': url,
             'url_linktext': url_linktext
         }
 
-        template = JINJA_ENVIRONMENT.get_template('jinja_template')
+        template = JINJA_ENVIRONMENT.get_template('jinja_template.html')
         self.response.write(template.render(template_values))
 
 
+class LoginAndAuthorize(BaseHandler):
+    def get(self):
+        http = httplib2.Http()
+        method = 'POST'
+        base_url = 'https://api.twitter.com/oauth/request_token'
+        oauth_headers = {'oauth_callback': callback_url}
+        request_headers = {'User-Agent': 'Google App Engine',
+                           'Authorization': createAuthHeader(method, base_url, oauth_headers, None, None)}
 
+        response, content = http.request(base_url, method, headers=request_headers)
+
+        logging.debug(response)
+        logging.debug(content)
+
+
+        if response['status'] != '200':
+            logging.debug('/oauth/request_token != 200')
+            self.redirect(gae_logs)
+            oauth_callback_confirmed = content.split('&')[1].replace('oauth_callback_confirmed=', '')
+
+        if oauth_callback_confirmed != 'true':
+            logging.debug('oauth_callback_confirmed != true')
+            self.redirect(gae_logs)
+        self.session['oauth_token'] = content.split('&')[0].replace('oauth_token=', '')
+        self.session['oauth_token_secret'] = content.split('&')[1].replace('oauth_token_secret=', '')
+
+        base_url = 'https://api.twitter.com/oauth/authenticate'
+        request_params = {'oauth_token': self.session.get('oauth_token')}
+        url_params = urllib.urlencode(request_params)
+        request_url = base_url+"?"+url_params
+        self.redirect(request_url)
 
 class OAuthHandler(BaseHandler):
-
     def get(self):
-        logging.debug('ENTERING OAuthHandler --->')
-
-        request_url = self.request.url
-        code = request_url.split('code=')[1]
-
         http = httplib2.Http()
-        metodoa = 'POST'
-        url = 'https://api.twitter.com/oauth2/token'
-        parametroak = {'grant_type': 'client_credentials'}
-        parametroak = urllib.urlencode(parametroak)
-        erantzuna, edukia = http.request(url,metodoa,body=parametroak,headers=[])
-        json_edukia = json.loads(edukia)
-        self.session['access_token'] = json_edukia['access_token']
-        self.redirect('/RefreshLast3Tweets')
+        method = 'POST'
+        base_url = 'https://api.twitter.com/oauth/access_token'
+        oauth_headers = {'oauth_token': self.session.get('oauth_token')}
+        request_headers = {'User-Agent': 'Google App Engine',
+                           'Authorization': createAuthHeader(method, base_url, oauth_headers, None, None)}
+        request_params = {'oauth_verifier' : self.session.get('oauth_verifier')}
+        request_body = urllib.urlencode(request_params)
+        resp, content = http.request(base_url, method, body=request_body, headers=request_headers)
+        logging.debug(resp)
+        logging.debug(content)
+        if resp['status'] != '200':
+            logging.debug('/oauth/request_token != 200')
+            self.redirect(gae_logs)
+
+        self.session['oauth_token'] = content.split('&')[0].replace('oauth_token=', '')
+        self.session['oauth_token_secret'] = content.split('&')[1].replace('oauth_token_secret=', '')
+        self.session['twitter_user'] = True
+        self.redirect('/')
 
 
 class RefreshLast3Tweets(BaseHandler):
 
     def get(self):
-        logging.debug('ENTERING RefreshLast3Tweets --->')
         http = httplib2.Http()
-        metodoa='GET'
-        errekurtsoa= 'https://api.twitter.com/1.1/statuses/user_timeline.json?'
-        parametroak = {'screen_name':users.get_current_user(),
-                       'count':3,
-                       'include_rts': False}
-        parametroak = urllib.urlencode(parametroak)
-        erantzuna = http.request(errekurtsoa,metodoa,body=parametroak,headers=None)
-        print erantzuna
+        method = 'GET'
+        base_url = 'https://api.twitter.com/1.1/statuses/home_timeline.json'
+        oauth_headers = {'oauth_token': self.session.get('oauth_token')}
+        request_params = {'count' : '3'}
+        request_body = urllib.urlencode(request_params)
+        request_headers = {'User-Agent': 'Google App Engine',
+                           'Authorization': createAuthHeader(method, base_url, oauth_headers, request_params, self.session.get('oauth_token_secret'))}
+        base_url = base_url + '?' + request_body
+        resp, content = http.request(base_url, method, headers=request_headers)
+        logging.debug(content)
+
+        edukia = json.loads(content)
+        erantzuna = {}
+        i=1
+        for each in edukia:
+            if i < 4:
+                erantzuna['name' + str(i)] = each['user']['name']
+                erantzuna['tweet' + str(i)] = each['text']
+                i = i + 1
+        json_erantzuna = json.dumps(erantzuna)
+        self.response.write(json_erantzuna)
 
 class SendTweetToTwitter(BaseHandler):
 
     def get(self):
-        logging.debug('ENTERING SendTweetToTwitter --->')
+        tweet = self.request.get('tweet')
         http = httplib2.Http()
-        metodoa = 'POST'
-        errekurtsoa = 'https://api.twitter.com/1.1/statuses/update.json'
-        parametroak = {'status': self.request.get('tweet')}
+        method = 'POST'
+        base_url = 'https://api.twitter.com/1.1/statuses/update.json'
+        oauth_headers = {'oauth_token': self.session.get('oauth_token')}
+        request_params = {'status' : tweet}
+        request_body = urllib.urlencode(request_params)
+        request_headers = {'User-Agent': 'Google App Engine',
+                           'Authorization': createAuthHeader(method, base_url, oauth_headers, request_params, self.session.get('oauth_token_secret'))}
+        resp, content = http.request(base_url, method, body=request_body, headers=request_headers)
+        logging.debug(content)
 
+        self.redirect('/')
 
 def createAuthHeader(method, base_url, oauth_header, http_params, oauth_token_secret):
     oauth_header.update({'oauth_consumer_key': consumer_key,
@@ -188,6 +257,7 @@ def createRequestSignature(method, base_url, oauth_header, http_params, oauth_to
 
 app = webapp2.WSGIApplication([
     ('/', MainHandler),
+    ('/LoginAndAuthorize', LoginAndAuthorize),
     ('/oauth_callback', OAuthHandler),
     ('/RefreshLast3Tweets', RefreshLast3Tweets),
     ('/SendTweetToTwitter', SendTweetToTwitter),
