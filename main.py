@@ -26,11 +26,15 @@ import hmac
 import binascii
 import hashlib
 import logging
+import jinja2
+from google.appengine.api import users
+import os
+import json
 
 from webapp2_extras import sessions
 
 
-app_id = 'wsproiektua2'
+app_id = 'wsproiektua'
 consumer_key= 'kn5h9Ugc1cqbdgKVytnGtLgHX'
 consumer_secret = '9DywYgURVynwo491diML5g9p3BL9DHAwA3yofZhFHUqpj4CeyS'
 callback_url = 'https://' + app_id + '.appspot.com/oauth_callback'
@@ -58,19 +62,34 @@ config = {}
 config['webapp2_extras.sessions'] = {'secret_key': 'my-super-secret-key'}
 
 
-class MainHandler(webapp2.RequestHandler):
+JINJA_ENVIRONMENT = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(os.path.dirname(__file__)),
+    extensions=['jinja2.ext.autoescape'],
+    autoescape=True)
 
+
+
+class MainHandler(BaseHandler):
     def get(self):
-        logging.debug('ENTERING MainHandler --->')
-        self.response.write('<a href="/LoginAndAuthorize">Login and Authorize with Twitter</a>')
+        user= users.get_current_user()
+        if user:
+            url = users.create_logout_url(self.request.uri)
+            url_linktext = 'Logout'
+        else:
+            url = users.create_login_url(self.request.uri)
+            url_linktext = 'Login'
+
+        template_values = {
+            'user': user,
+            'url': url,
+            'url_linktext': url_linktext
+        }
+
+        template = JINJA_ENVIRONMENT.get_template('jinja_template')
+        self.response.write(template.render(template_values))
 
 
-class LoginAndAuthorize(webapp2.RequestHandler):
-    def get(self):
-        url = 'https://api.twitter.com/oauth/authorize'
-        parametroak = {'force_login': True}
-        parametroak = urllib.urlencode(parametroak)
-        self.redirect(url + '?' + parametroak)
+
 
 class OAuthHandler(BaseHandler):
 
@@ -88,31 +107,32 @@ class OAuthHandler(BaseHandler):
         erantzuna, edukia = http.request(url,metodoa,body=parametroak,headers=[])
         json_edukia = json.loads(edukia)
         self.session['access_token'] = json_edukia['access_token']
-        self.redirect('/')
+        self.redirect('/RefreshLast3Tweets')
 
 
 class RefreshLast3Tweets(BaseHandler):
 
     def get(self):
         logging.debug('ENTERING RefreshLast3Tweets --->')
+        http = httplib2.Http()
         metodoa='GET'
         errekurtsoa= 'https://api.twitter.com/1.1/statuses/user_timeline.json?'
-
+        parametroak = {'screen_name':users.get_current_user(),
+                       'count':3,
+                       'include_rts': False}
+        parametroak = urllib.urlencode(parametroak)
+        erantzuna = http.request(errekurtsoa,metodoa,body=parametroak,headers=None)
+        print erantzuna
 
 class SendTweetToTwitter(BaseHandler):
 
     def get(self):
         logging.debug('ENTERING SendTweetToTwitter --->')
+        http = httplib2.Http()
+        metodoa = 'POST'
+        errekurtsoa = 'https://api.twitter.com/1.1/statuses/update.json'
+        parametroak = {'status': self.request.get('tweet')}
 
-        self.response.write('<html><head><title>form</title></head>')
-        self.response.write('<body><form method="GET" action="processForm">')
-        self.response.write('Tweet: <input name="Tweet" type="text"/>')
-        self.response.write('<input type ="submit"></form></body></html>')
-
-class ProcessForm(webapp2.RequestHandler):
-    def get(self):
-        tweet = self.request('Tweet')
-        self.response.write(tweet)
 
 def createAuthHeader(method, base_url, oauth_header, http_params, oauth_token_secret):
     oauth_header.update({'oauth_consumer_key': consumer_key,

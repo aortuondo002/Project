@@ -1,5 +1,5 @@
 application: wsproiektua
-version: 1
+version: 1:1
 runtime: python27
 api_version: 1
 threadsafe: yes
@@ -13,7 +13,7 @@ handlers:
   static_dir: js
 
 - url: .*
-  script: main_ajax.app
+  script: main.app
 
 libraries:
 - name: webapp2
