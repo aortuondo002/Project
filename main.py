@@ -39,7 +39,10 @@ consumer_secret = '9DywYgURVynwo491diML5g9p3BL9DHAwA3yofZhFHUqpj4CeyS'
 callback_url = 'https://' + app_id + '.appspot.com/oauth_callback'
 gae_logs = 'https://appengine.google.com/logs?&app_id=' + app_id
 
-
+JINJA_ENVIRONMENT = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(os.path.dirname(__file__)),
+    extensions=['jinja2.ext.autoescape'],
+    autoescape=True)
 class BaseHandler(webapp2.RequestHandler):
 
     def dispatch(self):
@@ -62,10 +65,7 @@ config = {}
 config['webapp2_extras.sessions'] = {'secret_key': 'my-super-secret-key'}
 
 
-JINJA_ENVIRONMENT = jinja2.Environment(
-    loader=jinja2.FileSystemLoader(os.path.dirname(__file__)),
-    extensions=['jinja2.ext.autoescape'],
-    autoescape=True)
+
 
 
 
@@ -101,7 +101,7 @@ class MainHandler(BaseHandler):
             'url_linktext': url_linktext
         }
 
-        template = JINJA_ENVIRONMENT.get_template('jinja_template.html')
+        template = JINJA_ENVIRONMENT.get_template('index.html')
         self.response.write(template.render(template_values))
 
 
@@ -118,12 +118,14 @@ class LoginAndAuthorize(BaseHandler):
 
         logging.debug(response)
         logging.debug(content)
+        print(content)
 
 
         if response['status'] != '200':
             logging.debug('/oauth/request_token != 200')
             self.redirect(gae_logs)
-            oauth_callback_confirmed = content.split('&')[1].replace('oauth_callback_confirmed=', '')
+
+        oauth_callback_confirmed = content.split('&')[2].replace('oauth_callback_confirmed=', '')
 
         if oauth_callback_confirmed != 'true':
             logging.debug('oauth_callback_confirmed != true')
@@ -139,6 +141,8 @@ class LoginAndAuthorize(BaseHandler):
 
 class OAuthHandler(BaseHandler):
     def get(self):
+        url_get = self.request.url
+    	self.session['oauth_verifier'] = url_get.split('&oauth_verifier=')[1]
         http = httplib2.Http()
         method = 'POST'
         base_url = 'https://api.twitter.com/oauth/access_token'
@@ -211,6 +215,9 @@ def createAuthHeader(method, base_url, oauth_header, http_params, oauth_token_se
                           'oauth_version': "1.0"})
     oauth_header['oauth_signature'] = urllib.quote(createRequestSignature(method, base_url, oauth_header, http_params, oauth_token_secret), "")
 
+    if oauth_header.has_key('oauth_callback'):
+        oauth_header['oauth_callback'] = urllib.quote_plus(oauth_header['oauth_callback'])
+
     authorization_header = "OAuth "
     for each in sorted(oauth_header.keys()):
         if each == sorted(oauth_header.keys())[-1]:
@@ -252,7 +259,7 @@ def createRequestSignature(method, base_url, oauth_header, http_params, oauth_to
     hashed = hmac.new(signing_key, signature_base, hashlib.sha1)
     oauth_signature = binascii.b2a_base64(hashed.digest())
 
-    return oauth_signature
+    return oauth_signature[:-1]
 
 
 app = webapp2.WSGIApplication([

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+{% autoescape true %}
+<html>
+	<head>
+		<title>
+			Twet
+		</title>
+	</head>
+<body>
+        {% if user %}
+            {% if twitter_user %}
+                {{ name }}
+                Last 3 Tweets:
+                </body>
+                <body onload="GetTweet()">
+                <script src="/js/javascript_ajax.js"></script>
+                <p>
+
+                <span class="name1">0</span><br>
+                <span class="tweet1">0</span><br><br>
+
+                <span class="name2">0</span><br>
+                <span class="tweet2">0</span><br><br>
+
+                <span class="name3">0</span><br>
+                <span class="tweet3">0</span><br><br>
+
+                </p>
+                </body>
+                <body>
+                <br>
+                <b>Tweet this:</b>
+                <form method="GET" action="/SendTweetToTwitter">
+                    <input type="text" name="tweet"><br/>
+                <br/>
+                <input type="submit">
+                </form>
+            {% else %}
+                Kaixo {{user.email()}}</br>
+
+                <a href="/LoginAndAuthorize">Login and Authorize with Twitter</a></br>
+                </br>
+                {% endif %}
+        {% else %}
+            Autentikatu zaitez:</br>
+        {% endif %}
+        <a href="{{ url }}">{{ url_linktext }}</a>
+	</body>
+</html>
+{% endautoescape %}
